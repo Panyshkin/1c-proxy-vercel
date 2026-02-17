@@ -1,0 +1,16 @@
+{
+  "name": "1c-proxy-vercel",
+  "version": "1.0.0",
+  "description": "Прокси для отправки заказов в 1С",
+  "type": "module",
+  "scripts": {
+    "start": "node api/create-order.js",
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
