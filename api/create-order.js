@@ -2,26 +2,23 @@ import fetch from 'node-fetch';
 
 export default async function handler(req, res) {
   // ========== НАСТРОЙКА CORS ==========
-  // Разрешаем запросы с вашего GitHub Pages сайта
   const allowedOrigins = [
     'https://panyshkin.github.io',
     'http://localhost:3000',
     'http://localhost:5500',
-    'http://127.0.0.1:5500',
-    'https://kdnovik.github.io' // если у вас другой домен
+    'http://127.0.0.1:5500'
   ];
 
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
-    // Для тестирования можно разрешить все (но в продакшене лучше ограничить)
     res.setHeader('Access-Control-Allow-Origin', '*');
   }
   
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Max-Age', '86400'); // кэширование preflight на 24 часа
+  res.setHeader('Access-Control-Max-Age', '86400');
 
   // ========== ОБРАБОТКА PREFLIGHT (OPTIONS) ==========
   if (req.method === 'OPTIONS') {
@@ -68,7 +65,6 @@ export default async function handler(req, res) {
     }
 
     // ========== ПОЛУЧАЕМ УЧЁТНЫЕ ДАННЫЕ ИЗ VERCEL ==========
-    // ВАЖНО: эти переменные нужно добавить в Vercel через интерфейс!
     const login1C = process.env.LOGIN_1C;
     const password1C = process.env.PASSWORD_1C;
     
@@ -80,18 +76,38 @@ export default async function handler(req, res) {
       });
     }
 
-    // ========== ЛОГИРУЕМ ПОЛУЧЕННЫЕ ДАННЫЕ (для отладки) ==========
+    // ========== ЛОГИРУЕМ ПОЛУЧЕННЫЕ ДАННЫЕ (с проверкой типов) ==========
     console.log('👤 Менеджер:', clientData.data.manager);
     console.log('👤 Клиент:', clientData.data.client?.name);
     console.log('📞 Телефон:', clientData.data.client?.phone);
     console.log('🚗 Авто:', clientData.data.client?.car);
     console.log('🛞 Колёса:', `R${clientData.data.wheels?.radius}`, 
       `x${clientData.data.wheels?.qty}`);
-    console.log('📦 Материалов:', clientData.data.materials?.filter(m => m.qty > 0).length || 0);
-    console.log('🔧 Услуг:', clientData.data.services?.filter(s => s.qty > 0).length || 0);
+
+    // Безопасно считаем материалы
+    let materialsCount = 0;
+    if (clientData.data.materials) {
+      if (Array.isArray(clientData.data.materials)) {
+        materialsCount = clientData.data.materials.filter(m => m.qty > 0).length;
+      } else if (typeof clientData.data.materials === 'string') {
+        materialsCount = clientData.data.materials.split(',').filter(s => s.trim()).length;
+      }
+    }
+    console.log('📦 Материалов:', materialsCount);
+
+    // Безопасно считаем услуги
+    let servicesCount = 0;
+    if (clientData.data.services) {
+      if (Array.isArray(clientData.data.services)) {
+        servicesCount = clientData.data.services.filter(s => s.qty > 0).length;
+      } else if (typeof clientData.data.services === 'string') {
+        servicesCount = clientData.data.services.split(',').filter(s => s.trim()).length;
+      }
+    }
+    console.log('🔧 Услуг:', servicesCount);
 
     // ========== ОТПРАВЛЯЕМ ЗАПРОС В 1С ==========
-    const url1C = 'https://homesrv.corp.rarus-cloud.ru/ut2/hs/anketa/send';
+    const url1C = process.env.URL_1C || 'https://homesrv.corp.rarus-cloud.ru/ut2/hs/anketa/send';
     
     console.log('🔄 Отправка запроса в 1С...');
     
@@ -114,12 +130,11 @@ export default async function handler(req, res) {
       responseData = JSON.parse(responseText);
       console.log('📄 Ответ (JSON):', JSON.stringify(responseData).substring(0, 200));
     } catch (e) {
-      // Если не JSON, сохраняем как текст
       responseData = { raw: responseText };
       console.log('📄 Ответ (текст):', responseText.substring(0, 200));
     }
 
-    // Извлекаем номер заказа (подстраиваемся под формат 1С)
+    // Извлекаем номер заказа
     const orderNumber = responseData.orderNumber || 
                        responseData.Номер || 
                        responseData.number ||
@@ -132,7 +147,6 @@ export default async function handler(req, res) {
       code: response.status,
       orderNumber: orderNumber,
       message: responseText,
-      // Добавляем служебную информацию (можно убрать в проде)
       _debug: {
         timestamp: new Date().toISOString(),
         hasData: !!clientData.data
@@ -140,7 +154,6 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    // ========== ОБРАБОТКА ОШИБОК ==========
     console.error('❌ Ошибка прокси:', error);
     
     res.status(500).json({
