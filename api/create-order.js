@@ -104,8 +104,11 @@ export default async function handler(req, res) {
         servicesCount = clientData.data.services.split(',').filter(s => s.trim()).length;
       }
     }
+    
     console.log('🔧 Услуг:', servicesCount);
-
+    console.log('🔄 Отправка в 1С, полный payload:');
+    console.log(JSON.stringify(clientData, null, 2));
+    
     // ========== ОТПРАВЛЯЕМ ЗАПРОС В 1С ==========
     const url1C = process.env.URL_1C || 'https://homesrv.corp.rarus-cloud.ru/ut2/hs/anketa/send';
     
