@@ -1,4 +1,4 @@
-// Пример для get-settings.js
+// /api/get-settings.js
 export default async function handler(req, res) {
   // Разрешаем CORS (важно для работы с браузера)
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,24 +17,43 @@ export default async function handler(req, res) {
 
   try {
     const { subdivision } = req.body;
-    // Здесь ваш код для получения данных из 1С
-    // Например, отправка запроса к 1С с авторизацией
 
-    // Тестовый ответ (замените на реальные данные из 1С)
-    const data = {
-      success: true,
-      mechanics: ['Иванов Иван', 'Петров Петр'],
-      materials: [
-        {id: 1, name: 'Расходные материалы', price: 150},
-        {id: 2, name: 'Грузик набивной', price: 50}
-      ],
-      services: [
-        {id: 1, name: 'Съём и установка колеса', price: 300, radius: null, carType: null, lowProfile: null, runflat: null}
-      ]
+    // Берём учётные данные из переменных окружения Vercel
+    const login = process.env.LOGIN_1C;
+    const password = process.env.PASSWORD_1C;
+
+    if (!login || !password) {
+      throw new Error('Не заданы учётные данные для 1С');
+    }
+
+    // Формируем запрос к 1С
+    const payload = {
+      action: 'create_order_tyre_get_settings',
+      data: { subdivision }
     };
 
-    res.status(200).json(data);
+    const response = await fetch('https://homesrv.corp.rarus-cloud.ru/ut2/hs/anketa/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Basic ' + Buffer.from(login + ':' + password).toString('base64')
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const responseText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      data = { success: false, error: 'Ответ от 1С не является JSON' };
+    }
+
+    // Отправляем клиенту то, что вернула 1С
+    res.status(response.ok ? 200 : 500).json(data);
+
   } catch (error) {
+    console.error('Ошибка в прокси:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 }
